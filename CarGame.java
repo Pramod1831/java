@@ -1,243 +1,212 @@
 package build;
 
+import java.awt.event.KeyEvent;
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
-import java.util.ArrayList;
+import java.io.*;
 import java.util.Random;
 
-public class CarGame extends JPanel implements ActionListener, KeyListener {
-    private Timer timer;
-    private Car playerCar;
-    private ArrayList<Car> otherCars;
-    private int score;
-    private int speed;
-    private long lastSpeedIncreaseTime;
-    private long lastCarSpawnTime;
-    private int spawnInterval;
-    private boolean isPaused;
+public class BrickBreakerGame extends JPanel implements java.awt.event.KeyListener{
+    public static final int WIDTH=800;
+    public static final int HEIGHT=600;
+    public static final int PADDLE_WIDTH=200;
+    public static final int PADDLE_HEIGHT=50;
+    public static final int BALL_SIZE=30;
+
+    private static final String HIGHSCORE_FILE = "highscore.txt";
     
-    private JButton pauseButton;
-    private JButton resumeButton;
 
-    private static final int[] LANE_X_COORDINATES = {80, 215, 350};
-    private static final int LANE_WIDTH = 110;
+    //position of the ball and rectangle box.
 
-    public CarGame() {
-        setPreferredSize(new Dimension(480, 800));
-        setBackground(Color.BLACK);
+    private int paddleX = WIDTH / 2 - PADDLE_WIDTH / 2;
+    private int ballX = WIDTH / 2 - BALL_SIZE / 2;
+    private int ballY = HEIGHT / 2 - BALL_SIZE / 2;
+    private int ballDX = 2;
+    private int ballDY = -2;
+    private int score = 0;
+    private int lives=3;
+    private int highScore;
+
+    private boolean isRunning = true;
+
+    public BrickBreakerGame(){
+        setPreferredSize(new Dimension(WIDTH, HEIGHT));
+        setBackground(Color.ORANGE);
         setFocusable(true);
-        setLayout(null); // Use null layout for absolute positioning
         addKeyListener(this);
-
-        playerCar = new Car(LANE_X_COORDINATES[1], 600, Color.RED);
-        otherCars = new ArrayList<>();
-        timer = new Timer(30, this);
-        score = 0;
-        speed = 5;
-        spawnInterval = 2000;
-        lastSpeedIncreaseTime = System.currentTimeMillis();
-        lastCarSpawnTime = System.currentTimeMillis();
-        isPaused = false;
-
-        // Add pause and resume buttons
-        pauseButton = new JButton("Pause");
-        resumeButton = new JButton("Resume");
-        pauseButton.setBounds(380, 10, 80, 30);
-        resumeButton.setBounds(380, 50, 80, 30);
-        resumeButton.setEnabled(false); // Disable resume button initially
-
-        pauseButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                isPaused = true;
-                pauseButton.setEnabled(false);
-                resumeButton.setEnabled(true);
-                repaint();
-            }
-        });
-
-        resumeButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                isPaused = false;
-                pauseButton.setEnabled(true);
-                resumeButton.setEnabled(false);
-                repaint();
-            }
-        });
-
-        add(pauseButton);
-        add(resumeButton);
-
-        timer.start();
-    }
-
-    @Override
-    public void paintComponent(Graphics g) {
-        super.paintComponent(g);
-        drawLanes(g);
-        playerCar.draw(g);
-        for (Car car : otherCars) {
-            car.draw(g);
-        }
-        g.setColor(Color.WHITE);
-        g.drawString("Score: " + score, 50, 20);
-        if (isPaused) {
-            g.drawString("Paused", getWidth() / 2 - 30, getHeight() / 2);
-        }
-    }
-
-    private void drawLanes(Graphics g) {
-        g.setColor(Color.WHITE);
         
-        // Draw side strips
-        g.fillRect(10, 0, 10, getHeight());
-        g.fillRect(400, 0, 10, getHeight());
-
-        // Draw center lane dividers
-        for (int laneCenter : LANE_X_COORDINATES) {
-            for (int y = 0; y < getHeight(); y += 40) {
-                g.fillRect(laneCenter + LANE_WIDTH / 2, y, 5, 25);
-            }
-        }
+        // Start the game loop
+        Thread gameLoop = new Thread(this::runGame);
+        
+        gameLoop.start();
+        randomizeBallDirection();
     }
 
     @Override
-    public void actionPerformed(ActionEvent e) {
-        if (isPaused) {
-            return;
-        }
-
-        playerCar.move();
-        if (System.currentTimeMillis() - lastSpeedIncreaseTime >= 30000) {
-            speed += 2;
-            spawnInterval = Math.max(spawnInterval - 200, 500); // Decrease spawn interval
-            lastSpeedIncreaseTime = System.currentTimeMillis();
-        }
-        if (System.currentTimeMillis() - lastCarSpawnTime >= spawnInterval) {
-            spawnCars();
-            lastCarSpawnTime = System.currentTimeMillis();
-        }
-        for (Car car : otherCars) {
-            car.y += speed;
-        }
-        otherCars.removeIf(car -> car.y > 800);
-        checkCollisions();
-        score++;
-        repaint();
-    }
-
-    private void spawnCars() {
-        Random rand = new Random();
-        int lane1 = LANE_X_COORDINATES[rand.nextInt(LANE_X_COORDINATES.length)];
-        otherCars.add(new Car(lane1, 0, Color.ORANGE));
-    }
-
-    private void checkCollisions() {
-        for (Car car : otherCars) {
-            if (playerCar.getBounds().intersects(car.getBounds())) {
-                timer.stop();
-                JOptionPane.showMessageDialog(this, "Game Over! Final Score: " + score);
-                System.exit(0);
-            }
-        }
+    public void keyTyped(KeyEvent e) {
+        
     }
 
     @Override
     public void keyPressed(KeyEvent e) {
-        if (e.getKeyCode() == KeyEvent.VK_LEFT) {
-            movePlayerToLeftLane();
+        
+        int key = e.getKeyCode();
+        if (key == KeyEvent.VK_LEFT) {
+            paddleX -= 40;
+            if(paddleX<0)
+                paddleX=0;
+        } else if (key == KeyEvent.VK_RIGHT) {
+            paddleX += 40;
+            if (paddleX > WIDTH - PADDLE_WIDTH) // Adjust paddle position to stay within screen bounds
+                paddleX = WIDTH - PADDLE_WIDTH;
         }
-        if (e.getKeyCode() == KeyEvent.VK_RIGHT) {
-            movePlayerToRightLane();
-        }
-        if (e.getKeyCode() == KeyEvent.VK_P) {
-            isPaused = !isPaused;
-            pauseButton.setEnabled(!isPaused);
-            resumeButton.setEnabled(isPaused);
+    }
+
+    @Override
+    public void keyReleased(KeyEvent e) {
+        
+    }
+
+    public void runGame(){
+        while (isRunning) {
+            // Update game state
+            update();
+
+            // Render game
             repaint();
-        }
-    }
 
-    private void movePlayerToLeftLane() {
-        for (int i = 1; i < LANE_X_COORDINATES.length; i++) {
-            if (playerCar.x == LANE_X_COORDINATES[i]) {
-                playerCar.x = LANE_X_COORDINATES[i - 1];
-                break;
+            // Pause briefly to control frame rate
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
         }
     }
 
-    private void movePlayerToRightLane() {
-        for (int i = 0; i < LANE_X_COORDINATES.length - 1; i++) {
-            if (playerCar.x == LANE_X_COORDINATES[i]) {
-                playerCar.x = LANE_X_COORDINATES[i + 1];
-                break;
+    public void update() {
+        ballX += ballDX;
+        ballY += ballDY;
+    
+        if (ballX <= 0 || ballX >= WIDTH - BALL_SIZE) {
+            ballDX = -ballDX;
+        }
+        if (ballY <= 0) {
+            ballDY = -ballDY;
+        } else if (ballY >= HEIGHT - BALL_SIZE) {
+            // Player lost a life
+            lives--;
+            if (lives <= 0) {
+                // Game over
+                isRunning = false;
+                if (score > highScore) {
+                    highScore = score;
+                    saveHighScore();
+                }
+                // Reset the game
+                resetGame();
+            } else {
+                // Reset ball position and direction
+                ballX = WIDTH / 2 - BALL_SIZE / 2;
+                ballY = HEIGHT / 2 - BALL_SIZE / 2;
+                randomizeBallDirection();
             }
+        }
+    
+        // Collision detection with paddle
+        if (ballY + BALL_SIZE >= HEIGHT - PADDLE_HEIGHT &&
+                ballX + BALL_SIZE >= paddleX &&
+                ballX <= paddleX + PADDLE_WIDTH) {
+            ballDY = -ballDY;
+            score++;
+            ballDX *= 1.50;
+            ballDY *= 1.50;
+        }
+    }
+    
+    private void resetGame() {
+        score = 0;
+        lives = 3;
+        ballX = WIDTH / 2 - BALL_SIZE / 2;
+        ballY = HEIGHT / 2 - BALL_SIZE / 2;
+        randomizeBallDirection();
+    }
+
+    private void randomizeBallDirection() {
+        // Randomly set ball direction (either left or right)
+        Random random=new Random();
+        ballDX = random.nextBoolean() ? 2 : -2;
+        // Randomly set ball direction (either up or down)
+        ballDY = random.nextBoolean() ? 2 : -2;
+       
+    }
+
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+
+        // Draw paddle
+        g.setColor(Color.BLACK);
+        g.fillRect(paddleX, HEIGHT - PADDLE_HEIGHT, PADDLE_WIDTH, PADDLE_HEIGHT);
+
+        // Draw ball
+        g.setColor(Color.RED);
+        g.fillOval(ballX, ballY, BALL_SIZE, BALL_SIZE);
+
+        g.setColor(Color.BLACK);
+        g.setFont(new Font("Garamond", Font.BOLD, 30));
+        g.drawString("Score: " + score, 20, 30);
+
+        // Draw lives
+        g.drawString("Lives: " + lives, WIDTH - 120, 30);
+
+        //Draw HighScore
+        g.drawString("High Score: "+highScore, 20,60);
+
+        // Draw game over message if the game is over
+        if (!isRunning) {
+            g.setColor(Color.RED);
+            g.setFont(new Font("Garamond", Font.BOLD, 50));
+            g.drawString("Game Over", WIDTH / 2 - 120, HEIGHT / 2);
         }
     }
 
-    @Override
-    public void keyReleased(KeyEvent e) {}
+    @SuppressWarnings("unused")
+    private void loadHighScore() {
+        try (BufferedReader reader = new BufferedReader(new FileReader(HIGHSCORE_FILE))) {
+            String line = reader.readLine();
+            if (line != null && !line.isEmpty()) {
+                highScore = Integer.parseInt(line);
+                System.out.println("High score loaded: " + highScore); // Add this line to print the loaded high score
+            } else {
+                System.out.println("No high score found in the file.");
+            }
+        } catch (IOException | NumberFormatException e) {
+            System.err.println("Error loading high score: " + e.getMessage());
+        }
+    }
 
-    @Override
-    public void keyTyped(KeyEvent e) {}
+    @SuppressWarnings("unused")
+    private void saveHighScore() {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(HIGHSCORE_FILE))) {
+            writer.write(String.valueOf(highScore));
+            System.out.println("High score saved: " + highScore);
+        } catch (IOException e) {
+            System.err.println("Error saving high score: " + e.getMessage());
+        }
+    }
 
     public static void main(String[] args) {
-        JFrame frame = new JFrame("Pramod World");
-        CarGame game = new CarGame();
-        frame.add(game);
-        frame.pack();
+        
+        BrickBreakerGame game = new BrickBreakerGame();
+        game.loadHighScore(); // Load high score before the game starts
+    
+        JFrame frame = new JFrame("Brick Breaker");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setResizable(false);
+        frame.add(game); // Use the same instance of BrickBreakerGame
+        frame.pack();
+        frame.setLocationRelativeTo(null);
         frame.setVisible(true);
     }
-}
-
-class Car {
-    int x, y, dx;
-    Color color;
-
-    public Car(int x, int y, Color color) {
-        this.x = x;
-        this.y = y;
-        this.color = color;
-        this.dx = 0;
-    }
-
-    public void move() {
-        x += dx;
-        if (x < 0) x = 0;
-        if (x > 430) x = 430;
-    }
-
-    public void draw(Graphics g) {
-        Graphics2D g2d = (Graphics2D) g;
-        g2d.setColor(color);
-
-        // Draw car body
-        g2d.fillRoundRect(x, y, 40, 100, 10, 10);
-
-        // Draw car details
-        g2d.setColor(Color.BLACK);
-        g2d.fillRect(x + 5, y + 10, 30, 20); // Windshield
-        g2d.fillRect(x + 5, y + 70, 30, 20); // Rear window
-
-        g2d.setColor(Color.GRAY);
-        g2d.fillRect(x + 10, y + 35, 20, 30); // Roof
-
-        // Draw wheels
-        g2d.setColor(Color.BLACK);
-        g2d.fillOval(x - 5, y + 10, 10, 20);
-        g2d.fillOval(x + 35, y + 10, 10, 20);
-        g2d.fillOval(x - 5, y + 70, 10, 20);
-        g2d.fillOval(x + 35, y + 70, 10, 20);
-    }
-
-    public Rectangle getBounds() {
-        return new Rectangle(x, y, 40, 100);
-    }
+    
 }
