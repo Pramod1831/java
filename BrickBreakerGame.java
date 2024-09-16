@@ -207,4 +207,3 @@ public class BrickBreakerGame extends JPanel implements java.awt.event.KeyListen
     }
     
 }
-Make the change of fast moving ball to doubling the ball, whenever it hits the paddle
